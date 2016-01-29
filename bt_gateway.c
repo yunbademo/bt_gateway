@@ -1,8 +1,3 @@
-#include "yunba.h"
-#include "cJSON.h"
-//#include "MQTTClient.h"
-#include "MQTTClientPersistence.h"
-
 #include <stdio.h>
 #include <signal.h>
 #include <memory.h>
@@ -21,10 +16,17 @@
 #include <errno.h>
 #include <termios.h>
 
+#include "yunba.h"
+#include "cJSON.h"
+#include "MQTTClientPersistence.h"
+
 REG_info my_reg_info;
 int bt_fd;
 
 volatile int toStop = 0;
+
+const char *cmd_set = "LED_set";
+const char *cmd_get = "LED_get";
 
 void usage() {
 	printf("Usage: bt_gateway topicname <options>, where options are:\n");
@@ -58,7 +60,7 @@ struct {
 	char *alias;
 	char *bt_dev;
 	int verbose;
-} opts = { "\n", 100, 0, 0, NULL, NULL, NULL, NULL, 0};
+} opts = { "\n", 100, 0, 0, NULL, NULL, NULL, NULL, 0 };
 
 Presence_msg my_present;
 MQTTClient client;
@@ -66,14 +68,13 @@ MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
 
 void getopts(int argc, char** argv);
 
-int extendedCmdArrive(void *context, EXTED_CMD cmd, int status,
-		int ret_string_len, char *ret_string) {
+int extendedCmdArrive(void *context, EXTED_CMD cmd, int status, int ret_str_len,
+		char *ret_str) {
 	char buf[1024];
 	memset(buf, 0, 1024);
-	memcpy(buf, ret_string, ret_string_len);
-	printf("%s:%02x,%02x,%02x, %s\n", __func__, cmd, status, ret_string_len,
-			buf);
-
+	memcpy(buf, ret_str, ret_str_len);
+	printf("%s:%02x,%02x,%02x, %s\n", __func__, cmd, status, ret_str_len, buf);
+	return 0;
 }
 
 int messageArrived(void* context, char* topicName, int topicLen,
@@ -103,21 +104,31 @@ int messageArrived(void* context, char* topicName, int topicLen,
 	}
 	putchar('\n');
 
-	char *temp = (char *)calloc(m->payloadlen + 1, sizeof(char));
+	char *temp = (char *) calloc(m->payloadlen + 1, sizeof(char));
 	memcpy(temp, m->payload, m->payloadlen);
 	cJSON *root = cJSON_Parse(temp);
 	if (root) {
-		int ret_size = cJSON_GetArraySize(root);
-		if (ret_size == 3) {
-			char devid[30];
-			char statu[10];
-			char cmd[20];
-			//{"cmd": "LED_set", "devid": "<smart-plug-device-id>", "status": <status>}
-			strcpy(devid, cJSON_GetObjectItem(root, "devid")->valuestring);
-			strcpy(statu, cJSON_GetObjectItem(root, "status")->valuestring);
-			strcpy(cmd, cJSON_GetObjectItem(root, "cmd")->valuestring);
-			printf("bt_gw:%s, %s, %s, %i\n", devid, statu, cmd, bt_fd);
-			write(bt_fd, statu, sizeof(statu));
+		cJSON *devidItem = cJSON_GetObjectItem(root, "devid");
+		if (devidItem != NULL) {
+			if (strncmp(devidItem->valuestring, opts.deviceid,
+					strlen(opts.deviceid)) == 0) {
+				cJSON *cmdItem = cJSON_GetObjectItem(root, "cmd");
+				if (cmdItem != NULL) {
+					if (strncmp(cmdItem->valuestring, cmd_set, strlen(cmd_set))
+							== 0) {
+						cJSON *statusItem = cJSON_GetObjectItem(root, "status");
+						if (statusItem != NULL) {
+							char statu[10];
+							strcpy(statu, statusItem->valuestring);
+							write(bt_fd, statu, sizeof(statu));
+							printf("bt write: %s\n", statu);
+						}
+					} else if (cmdItem->valuestring, cmd_get, strlen(cmd_get)) {
+						write(bt_fd, "get", sizeof("get"));
+						printf("bt write: get\n");
+					}
+				}
+			}
 		}
 		cJSON_Delete(root);
 	}
@@ -131,8 +142,7 @@ int messageArrived(void* context, char* topicName, int topicLen,
 
 void connectionLost(void *context, char *cause) {
 	myconnect(&client, &conn_opts);
-	printf("%s, %s, %s\r\n", __func__, context, cause);
-
+	printf("%s, %s, %s\r\n", __func__, (char *) context, (char *) cause);
 }
 
 int open_port(const char* bt_dev) {
@@ -177,6 +187,7 @@ int main(int argc, char** argv) {
 	printf("Get reg info: client_id:%s,username:%s,password:%s, devide_id:%s\n",
 			my_reg_info.client_id, my_reg_info.username, my_reg_info.password,
 			my_reg_info.device_id);
+	opts.deviceid = my_reg_info.device_id;
 
 	res = MQTTClient_get_host_v2(opts.appkey, url);
 	if (res < 0) {
@@ -213,30 +224,21 @@ int main(int argc, char** argv) {
 	}
 
 	while (!toStop) {
-		int data_len = 0;
-		int delim_len = 0;
+		char r_buf[20];
+		memset(r_buf, 0, 20);
+		int read_size = read(bt_fd, r_buf, sizeof(20));
 
-		delim_len = strlen(opts.delimiter);
-		do {
-			buffer[data_len++] = getchar();
-			if (data_len > delim_len) {
-				//printf("comparing %s %s\n", opts.delimiter, &buffer[data_len - delim_len]);
-				if (strncmp(opts.delimiter, &buffer[data_len - delim_len],
-						delim_len) == 0)
-					break;
-			}
-		} while (data_len < opts.maxdatalen);
-
-		if (opts.verbose)
-			printf("Publishing data of length %d\n", data_len);
-		rc = MQTTClient_publish(client, topic, data_len, buffer);
-		if (rc != 0) {
-			myconnect(&client, &conn_opts);
-			rc = MQTTClient_publish(client, topic, data_len, buffer);
-			printf("reconnect %i\n", rc);
+		if (read_size > 0) {
+			char buf[200];
+			printf("read: %s\n", r_buf);
+			snprintf(buf, sizeof(buf), "{\"status\":\"%s\", \"devid\":\"%s\"}",
+					r_buf, opts.deviceid);
+			MQTTClient_publish(client, topic, strlen(buf), buf);
 		}
 		if (opts.qos > 0)
 			MQTTClient_yield();
+		printf("continue\r\n");
+		sleep(2);
 	}
 
 	printf("Stopping\n");

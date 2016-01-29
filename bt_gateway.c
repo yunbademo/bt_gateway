@@ -1,39 +1,3 @@
-/*******************************************************************************
- * Copyright (c) 2012, 2013 IBM Corp.
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * and Eclipse Distribution License v1.0 which accompany this distribution.
- *
- * The Eclipse Public License is available at
- *   http://www.eclipse.org/legal/epl-v10.html
- * and the Eclipse Distribution License is available at
- *   http://www.eclipse.org/org/documents/edl-v10.php.
- *
- * Contributors:
- *    Ian Craggs - initial contribution
- *******************************************************************************/
-
-/*
- stdin publisher
-
- compulsory parameters:
-
- --topic topic to publish on
-
- defaulted parameters:
-
- --host localhost
- --port 1883
- --qos 0
- --delimiters \n
- --clientid stdin_publisher
- --maxdatalen 100
-
- --userid none
- --password none
-
- */
 #include "yunba.h"
 #include "cJSON.h"
 //#include "MQTTClient.h"
@@ -51,12 +15,11 @@
 #include <stdlib.h>
 #endif
 
-#include <stdio.h>   /* Standard input/output definitions */
-#include <string.h>  /* String function definitions */
-#include <unistd.h>  /* UNIX standard function definitions */
-#include <fcntl.h>   /* File control definitions */
-#include <errno.h>   /* Error number definitions */
-#include <termios.h> /* POSIX terminal control definitions */
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <termios.h>
 
 REG_info my_reg_info;
 int bt_fd;
@@ -65,10 +28,10 @@ volatile int toStop = 0;
 
 void usage() {
 	printf("Usage: bt_gateway topicname <options>, where options are:\n");
-	printf("  --appkey xxxxxxxxxxxxxxxx\n");
-	printf("  --deviceid xxxxxxxxxxxxxxxx\n");
-	printf("  --alias xxxxxxxxxxxxxxxx\n");
-	printf("  --bt_dev xxxxxxxxxxxxxxxx\n");
+	printf("  --appkey <your-appkey>\n");
+	printf("  --deviceid <your-device-id>\n");
+	printf("  --alias <your-alias>\n");
+	printf("  --bt_dev <your-bluetooth-device>\n");
 	exit(-1);
 }
 
@@ -95,7 +58,7 @@ struct {
 	char *alias;
 	char *bt_dev;
 	int verbose;
-} opts = { "\n", 100, 0, 0, NULL, 0 };
+} opts = { "\n", 100, 0, 0, NULL, NULL, NULL, NULL, 0};
 
 Presence_msg my_present;
 MQTTClient client;
@@ -129,10 +92,10 @@ int messageArrived(void* context, char* topicName, int topicLen,
 	time_t t;
 	time(&t);
 	printf("Message arrived, date:%s", ctime(&t));
-	printf("     qos: %i\n", m->qos);
-	printf("     messageid: %"PRIu64"\n", m->msgid);
-	printf("     topic: %s\n", topicName);
-	printf("   message: ");
+	printf(" qos: %i\n", m->qos);
+	printf(" messageid: %"PRIu64"\n", m->msgid);
+	printf(" topic: %s\n", topicName);
+	printf(" message: ");
 
 	payloadptr = m->payload;
 	for (i = 0; i < m->payloadlen; i++) {
@@ -140,7 +103,7 @@ int messageArrived(void* context, char* topicName, int topicLen,
 	}
 	putchar('\n');
 
-	char *temp = (char *) calloc(m->payloadlen + 1, sizeof(char));
+	char *temp = (char *)calloc(m->payloadlen + 1, sizeof(char));
 	memcpy(temp, m->payload, m->payloadlen);
 	cJSON *root = cJSON_Parse(temp);
 	if (root) {
@@ -284,6 +247,8 @@ int main(int argc, char** argv) {
 
 	MQTTClient_destroy(&client);
 
+	close(bt_fd);
+
 	return 0;
 }
 
@@ -296,8 +261,7 @@ void getopts(int argc, char** argv) {
 				opts.appkey = argv[count];
 			else
 				usage();
-		}
-		else if (strcmp(argv[count], "--deviceid") == 0) {
+		} else if (strcmp(argv[count], "--deviceid") == 0) {
 			if (++count < argc)
 				opts.deviceid = argv[count];
 		} else if (strcmp(argv[count], "--alias") == 0) {
@@ -311,7 +275,6 @@ void getopts(int argc, char** argv) {
 			else
 				usage();
 		}
-
 		count++;
 	}
 }

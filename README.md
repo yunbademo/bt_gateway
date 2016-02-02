@@ -2,21 +2,23 @@
 
 　使用 [**yunba-c-sdk**](https://github.com/yunba/yunba-c-sdk.git) 就可以轻松实现 Bluetooth gateway ，让智能设备接入互联网功能。
 　
-## 环境搭建
+## 蓝牙设备
   
-设备：
-
 硬件平台：[Linklt One](http://www.seeedstudio.com/wiki/LinkIt_ONE%E5%BC%80%E5%8F%91%E6%9D%BF)
 
 相应的蓝牙控制 LED [代码](https://github.com/alexbank/bt_demo.git)
 
-PC端：
-带有蓝牙模块的。
+## gateway 环境搭建
 
-在 ubuntu 上，需安装 bluetooth
-```bash
+需要安装 bluetooth 服务。
+
+如果在 ubuntu 平台，可以：
+
+```
 apt-get install bluetooth
 ```
+
+如果是嵌入式平台需要交叉编译 bluetooth。
 
 修改文件　
 

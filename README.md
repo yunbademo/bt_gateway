@@ -1,6 +1,6 @@
 # bt_gateway
 
-　使用 [**yunba-c-sdk**](https://github.com/yunba/yunba-c-sdk.git) 实现 Bluetooth gateway 功能。
+　使用 [**yunba-c-sdk**](https://github.com/yunba/yunba-c-sdk.git) 就可以轻松实现 Bluetooth gateway ，让智能设备接入互联网功能。
 　
 ## 环境搭建
   

@@ -11,7 +11,7 @@
 PC端：
 带有蓝牙模块的。
 
-在 ubuntu 上，
+在 ubuntu 上，需安装 bluetooth
 ```bash
 apt-get install bluetooth
 ```
@@ -21,6 +21,8 @@ apt-get install bluetooth
 ```
 /etc/bluetooth/rfcomm.conf
 ```
+
+中对应的 address 以及 channel
 
 ##　步骤
 

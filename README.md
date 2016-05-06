@@ -6,7 +6,7 @@
   
 硬件平台：[Linklt One](http://www.seeedstudio.com/wiki/LinkIt_ONE%E5%BC%80%E5%8F%91%E6%9D%BF)
 
-相应的蓝牙控制 LED [代码](https://github.com/alexbank/bt_demo.git)
+相应的蓝牙控制 LED [代码](https://github.com/yunbademo/bt_demo.git)
 
 ## gateway 环境搭建
 
